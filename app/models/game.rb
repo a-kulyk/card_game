@@ -48,7 +48,8 @@ class Game < ActiveRecord::Base
 
     state :game_prepare do
       def do_preparation_for_game
-        table = Table.create({:game => self, :cards_count => 0, :defender_cursor => ONE, :attacker_cursor => ZERO})
+        table = Table.create({:game => self, :cards_count => 0,
+        					  :defender_cursor => ONE, :attacker_cursor => ZERO})
         deck = Deck.create({:game => self})
 
         deck.init_cards
@@ -64,29 +65,15 @@ class Game < ActiveRecord::Base
     end
 
     state :move_of_first_player, :move_of_second_player do
-      def get_card_from_player _card, _player, _attacker
-        puts _player
-        if mover == _player
-
-          if players[0] == _player
-            current_player = players[0]
+      def get_card_from_player(_card, _player, _attacker)
+        players_get_card(_card, _player, _attacker) do
+          if move_of_first_player?
+            second_player_move
+            self.mover = players[1]
           else
-            current_player = players[1]
+            first_player_move
+            self.mover = players[0]
           end
-
-          if do_get_card_from_player _card, _player, _attacker
-            current_player.delete_card _card
-
-            if move_of_first_player?
-              second_player_move
-              self.mover = players[1]
-            else
-              first_player_move
-              self.mover = players[0]
-            end
-          end
-        else
-          puts "Access denied"
         end
       end
 
@@ -108,21 +95,8 @@ class Game < ActiveRecord::Base
     end
 
     state :break_turn do
-      def get_card_from_player _card, _player, _attacker
-        if mover == _player
-
-          if players[0] == _player
-            current_player = players[0]
-          else
-            current_player = players[1]
-          end
-
-          if do_get_card_from_player _card, _player, _attacker
-            current_player.delete_card _card
-          end
-        else
-          puts "Access denied"
-        end
+      def get_card_from_player(_card, _player, _attacker)
+        players_get_card(_card, _player, _attacker)
       end
 
       def end_turn _player
@@ -221,13 +195,13 @@ class Game < ActiveRecord::Base
   end
 
   def init_new_turn
-    (SIX-players[0].cards_count).times do
+    (STARTING_QUANTITY-players[0].cards_count).times do
       if (deck.cursor < ALL_DECK_CARDS)
         players[0].add_card deck.get_one
       end
     end
 
-    (SIX-players[1].cards_count).times do
+    (STARTING_QUANTITY-players[1].cards_count).times do
       if (deck.cursor < ALL_DECK_CARDS)
         players[1].add_card deck.get_one
       end
@@ -241,5 +215,26 @@ class Game < ActiveRecord::Base
       game_end = true
     end
     game_end
+  end
+
+  private
+
+  def players_get_card (_card, _player, _attacker, &block)
+
+    if mover == _player
+      if players[0] == _player
+        current_player = players[0]
+      else
+        current_player = players[1]
+      end
+
+      if do_get_card_from_player _card, _player, _attacker
+        current_player.delete_card _card
+        access = true
+      end
+      
+      yield if block_given?
+        
+    end
   end
 end
